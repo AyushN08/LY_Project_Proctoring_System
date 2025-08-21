@@ -1,0 +1,13 @@
+# Python version
+python_version 3.11
+
+# Core dependencies
+opencv-python
+mediapipe
+numpy
+pyaudio
+speechrecognition
+
+# Optional (for screen monitoring)
+pygetwindow
+psutil
