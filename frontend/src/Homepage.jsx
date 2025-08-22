@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import CameraMic from "./CameraMic";
 import "./HomePage.css"; // Import CSS
 import TabMonitor from "./TabMonitor";
+import FullscreenButton from "./FullScreen";
 const Homepage = () => {
   const [testStarted, setTestStarted] = useState(false);
   const [error, setError] = useState("");
@@ -49,6 +50,7 @@ const Homepage = () => {
         <>
          <CameraMic />
          <TabMonitor/>
+         <FullscreenButton/>
         </>
        
         
