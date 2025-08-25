@@ -1,64 +1,43 @@
-"""
-proctoring_agent.py
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+import subprocess
+import os
+from fastapi.middleware.cors import CORSMiddleware
+import sys
+app = FastAPI()
 
-Features:
-- MediaPipe face detection (presence / multiple faces)
-- Periodic randomized face snapshot saving (3-5s interval) when a face is present
-- Optional active-window / process info (requires pygetwindow / psutil)
-- JSON-line logging to exam_logs.json
+# ✅ Add middleware after app creation
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-Run:
-python main.py
-"""
+process = None  # global reference to proctoring process
 
-from logger import EventLogger
-from audio_monitor import AudioMonitor
-from screen_monitor import ScreenMonitor
-from face_detector import FaceDetector
-import cv2
-import time
+@app.post("/api/start-proctoring")
+def start_proctoring():
+    global process
+    if process is None:
+        process = subprocess.Popen([sys.executable, "proctoring_agent.py"])
+        return {"status": "Proctoring started"}
+    return {"status": "Already running"}
 
-def main():
-    logger = EventLogger()
-    audio_monitor = AudioMonitor(logger)
-    screen_monitor = ScreenMonitor(logger)
-    face_detector = FaceDetector(logger)
+@app.post("/api/stop-proctoring")
+def stop_proctoring():
+    global process
+    if process:
+        process.terminate()
+        process = None
+        return {"status": "Proctoring stopped"}
+    return {"status": "Not running"}
 
-    audio_monitor.start()
-
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        logger.log_event("webcam_error", confidence=0.0, snapshot="cannot open webcam")
-        return
-
-    with face_detector.mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.6) as detector:
-        try:
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    logger.log_event("webcam_error", confidence=0.0, snapshot="cannot read frame")
-                    break
-
-                frame = face_detector.process_frame(frame, detector)
-
-                current_time = time.time()
-                if int(current_time) % 10 == 0:
-                    screen_info = screen_monitor.monitor_screen()
-                    if screen_info:
-                        logger.log_event("Screen Event", confidence=1.0, snapshot=screen_info)
-
-                # Show preview
-                cv2.imshow("Exam Proctoring (press 'q' to quit)", frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    logger.log_event("session_ended_by_user", confidence=1.0)
-                    break
-        except KeyboardInterrupt:
-            logger.log_event("session_interrupted", confidence=0.0)
-        except Exception as e:
-            logger.log_event("runtime_error", confidence=0.0, snapshot={"error": str(e)})
-        finally:
-            cap.release()
-            cv2.destroyAllWindows()
-
-if __name__ == "__main__":
-    main()
+@app.get("/api/logs")
+def get_logs():
+    if os.path.exists("exam_logs.json"):
+        with open("exam_logs.json", "r") as f:
+            logs = f.readlines()
+        return JSONResponse(content={"logs": [l.strip() for l in logs]})
+    return {"logs": []}
